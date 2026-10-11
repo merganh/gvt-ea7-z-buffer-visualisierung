@@ -1,0 +1,985 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="data:,">
+<title>EA 7: Z-Buffer Visualisierung</title>
+
+<style>
+  :root {
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --soft: #f5f5f5;
+    --primary: #1a1a1a;
+    --primary-dark: #000000;
+    --primary-light: #ededed;
+    --accent: #2a2a2a;
+    --success: #2e7d32;
+    --success-bg: #e8f5e9;
+    --error: #c62828;
+    --error-bg: #ffebee;
+    --warn: #ef6c00;
+    --warn-bg: #fff3e0;
+    --text: #1a1a1a;
+    --text-muted: #6b6b6b;
+    --border: #d4d4d4;
+    --border-strong: #1a1a1a;
+    --shadow: 0 1px 2px rgba(0,0,0,.05);
+    --shadow-lg: 0 2px 6px rgba(0,0,0,.06);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.55;
+  }
+
+  header {
+    background: #1a1a1a;
+    color: #fff;
+    padding: 2.5rem 1.5rem 2rem;
+    border-bottom: 1px solid #000;
+  }
+  header .wrap { max-width: 1080px; margin: 0 auto; }
+  header h1 { margin: 0 0 .35rem; font-size: 1.85rem; font-weight: 600; }
+  header p { margin: 0; opacity: .92; font-size: 1rem; }
+  header .meta {
+    margin-top: 1rem; font-size: .85rem; opacity: .75;
+    display: flex; flex-wrap: wrap; gap: .25rem 1rem;
+  }
+
+  main { max-width: 1080px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+  section { margin-bottom: 3rem; }
+
+  h2 {
+    font-size: 1.35rem; margin: 0 0 1rem;
+    padding-bottom: .5rem; border-bottom: 1px solid var(--border);
+  }
+  h2 .num {
+    display: inline-block; background: #1a1a1a; color: #fff;
+    border-radius: 2px; padding: .15rem .55rem; margin-right: .55rem;
+    font-size: .85rem; vertical-align: middle; letter-spacing: .03em;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid #1a1a1a;
+    border-radius: 4px;
+    box-shadow: var(--shadow);
+    padding: 1rem 1.1rem 1.1rem;
+    margin-bottom: 1.25rem;
+  }
+  .card h4 { margin: 0 0 .35rem; font-size: .95rem; font-weight: 600; }
+  .card .sub { font-size: .82rem; color: var(--text-muted); margin: 0 0 .65rem; }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; }
+  .btn {
+    display: inline-block; padding: .5rem 1rem;
+    background: #1a1a1a; color: #fff;
+    border: 1px solid #1a1a1a; border-radius: 2px;
+    font-size: .9rem; font-weight: 500; cursor: pointer;
+    transition: background .15s, color .15s;
+    font-family: inherit;
+  }
+  .btn:hover, .btn.is-pressed { background: #fff; color: #1a1a1a; }
+  .btn:focus-visible { outline: 2px solid #1a1a1a; outline-offset: 2px; }
+  .btn:disabled { background: #fff; color: var(--text-muted); border-color: var(--border); cursor: not-allowed; }
+  .btn.secondary { background: #fff; color: #1a1a1a; }
+  .btn.secondary:hover, .btn.secondary.is-pressed { background: #1a1a1a; color: #fff; }
+  .btn kbd { margin-left: .35rem; }
+
+  .global-status {
+    background: var(--soft); color: var(--text);
+    border-left: 3px solid #1a1a1a;
+    padding: .65rem 1rem; border-radius: 0;
+    font-size: .9rem; margin-bottom: 1.25rem;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+  }
+  .global-status.is-ready { background: var(--success-bg); border-left-color: var(--success); }
+  .global-status.is-error { background: var(--error-bg); border-left-color: var(--error); color: var(--error); white-space: pre-wrap; }
+  .global-status.is-warn  { background: var(--warn-bg);  border-left-color: var(--warn); }
+
+  .statline {
+    display: flex; flex-wrap: wrap; gap: .4rem 1.5rem; margin: 0 0 1rem;
+    font-size: .9rem; font-family: ui-monospace, Menlo, Consolas, monospace;
+  }
+  .statline b { font-weight: 600; }
+
+  .prose { max-width: 740px; }
+  .prose p { margin: 0 0 .75rem; }
+  .prose ul { padding-left: 1.4rem; margin: 0 0 1rem; }
+  .prose li { margin-bottom: .35rem; }
+  .prose a { color: #1a1a1a; text-decoration-thickness: 1px; }
+  .prose a:hover { text-decoration-thickness: 2px; }
+  .prose code { background: var(--soft); padding: 0 .3rem; border-radius: 3px; font-size: .9em; }
+  .prose h3 { font-size: 1.05rem; margin: 1.5rem 0 .5rem; }
+
+  table.key-table { border-collapse: collapse; margin: .5rem 0 1rem; font-size: .9rem; width: 100%; }
+  table.key-table th, table.key-table td { border: 1px solid var(--border); padding: .4rem .7rem; text-align: left; }
+  table.key-table th { background: var(--soft); font-weight: 600; }
+  table.key-table td:first-child { white-space: nowrap; width: 1%; }
+
+  kbd {
+    display: inline-block; padding: .05rem .35rem; background: var(--soft);
+    border: 1px solid var(--border); border-radius: 3px; font-size: .78rem; color: var(--text);
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+  }
+
+  footer { border-top: 1px solid var(--border); padding-top: 1.5rem; font-size: .85rem; color: var(--text-muted); }
+
+  @media (max-width: 720px) {
+    header h1 { font-size: 1.5rem; }
+    main { padding: 1.5rem 1rem 3rem; }
+  }
+
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+  /* Kontextsensitive Hilfe (ISO 9241-110) */
+  .help { position: relative; display: inline-block; margin-left: .5rem; vertical-align: middle; }
+  .help-btn {
+    width: 1.4rem; height: 1.4rem; padding: 0;
+    border: 1px solid var(--border-strong); background: #fff; color: var(--text);
+    border-radius: 50%; font-size: .8rem; font-weight: 600; cursor: help; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .help-btn:hover, .help-btn:focus-visible { background: var(--text); color: #fff; outline: none; }
+  .help-popover {
+    display: none; position: absolute; top: calc(100% + .35rem); left: 50%; transform: translateX(-50%);
+    width: min(360px, 80vw); background: #fff; color: var(--text);
+    border: 1px solid var(--border-strong); border-radius: 4px;
+    padding: .7rem .85rem; font-size: .85rem; line-height: 1.45;
+    box-shadow: var(--shadow-lg); z-index: 10; text-align: left; font-weight: normal;
+  }
+  .help-popover::before {
+    content: ""; position: absolute; top: -7px; left: 50%; transform: translateX(-50%) rotate(45deg);
+    width: 12px; height: 12px; background: #fff;
+    border-left: 1px solid var(--border-strong); border-top: 1px solid var(--border-strong);
+  }
+  .help.is-open .help-popover { display: block; }
+  .help-popover h4 { margin: 0 0 .35rem; font-size: .9rem; font-weight: 600; }
+  .help-popover p { margin: 0 0 .35rem; }
+  .help-popover p:last-child { margin-bottom: 0; }
+
+  /* WebGL-Ausgabe */
+  .viewport {
+    position: relative; background: var(--soft);
+    border: 1px solid var(--border); border-radius: 4px;
+    overflow: hidden; margin-bottom: 1rem;
+  }
+  .viewport canvas { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; background: #fff; }
+  .viewport canvas:focus-visible { outline: 2px solid #1a1a1a; outline-offset: -2px; }
+
+  /* Graustufen-Legende: Tiefe d zwischen Near und Far */
+  .legend { margin: 0 0 1.1rem; font-size: .8rem; }
+  .legend .bar-label { display: flex; justify-content: space-between; gap: 1rem; margin: 0 0 .25rem; color: var(--text-muted); }
+  .legend .bar { height: 14px; border: 1px solid var(--border-strong); border-radius: 2px; }
+  .legend .bar.linear { background: linear-gradient(to right, #000, #fff); }
+  .legend .ticks { position: relative; height: 1.3rem; margin: 0 0 .7rem; font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .legend .ticks span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; padding-top: 3px; }
+  .legend .ticks span::before { content: ""; position: absolute; top: -1px; left: 50%; width: 1px; height: 4px; background: #1a1a1a; }
+  .legend .ticks span:first-child { transform: none; }
+  .legend .ticks span:first-child::before { left: 0; }
+  .legend .ticks span:last-child { transform: translateX(-100%); }
+  .legend .ticks span:last-child::before { left: auto; right: 0; }
+
+  .pad { display: flex; flex-wrap: wrap; gap: .75rem 2rem; margin-bottom: .25rem; }
+  .pad-group { display: grid; grid-template-columns: repeat(3, auto); gap: .35rem; align-content: start; }
+  .pad-group .pad-title { grid-column: 1 / -1; font-size: .82rem; color: var(--text-muted); margin: 0 0 .1rem; }
+  .pad-group .btn { padding: .45rem .8rem; text-align: center; }
+  .pad-group .up { grid-column: 2; }
+  .pad-group .left { grid-column: 1; }
+  .pad-group .down { grid-column: 2; }
+  .pad-group .right { grid-column: 3; }
+  .pad-extra { display: flex; align-items: flex-end; }
+
+  .formula {
+    background: var(--soft); border-left: 3px solid #1a1a1a;
+    padding: .6rem .9rem; margin: 0 0 .9rem; overflow-x: auto;
+    font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .9rem; line-height: 1.8;
+  }
+  .table-scroll { overflow-x: auto; }
+  table.key-table td.num, table.key-table th.num { text-align: right; font-family: ui-monospace, Menlo, Consolas, monospace; }
+  table.key-table .swatch { display: inline-block; width: 1.6rem; height: .9rem; border: 1px solid var(--border-strong); vertical-align: middle; }
+  table.value-table td:first-child { width: auto; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <h1>EA 7: Z-Buffer Visualisierung</h1>
+    <p>Eine Szene aus sich durchdringenden Grundkörpern, gestaffelt in die Tiefe und als Tiefenpuffer in Graustufen dargestellt: nahe Fragmente sind dunkel, ferne hell. Kamera mit W, A, S, D bewegen, Szene mit den Pfeiltasten drehen.</p>
+    <div class="meta">
+      <span>Hamid Mergan</span>
+      <span>TH Lübeck</span>
+      <span>Modul Graphical Visualisation Technologies</span>
+      <span>Wintersemester 2026/27</span>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <div id="globalStatus" class="global-status" role="status" aria-live="polite">Initialisiere WebGL …</div>
+
+  <!-- A1 Tiefenpuffer -->
+  <section aria-labelledby="a1">
+    <h2 id="a1"><span class="num">A1</span>Tiefenpuffer der Szene
+      <span class="help">
+        <button type="button" class="help-btn" aria-label="Hilfe zu A1" aria-expanded="false">?</button>
+        <span class="help-popover" role="tooltip">
+          <h4>Was das Bild zeigt</h4>
+          <p>Jedes Pixel zeigt nicht die Farbe, sondern den Tiefenwert des sichtbaren Fragments. Schwarz liegt an der Near-Clipping-Plane, Weiß an der Far-Clipping-Plane. Der Hintergrund ist weiß, weil der Tiefenpuffer dort seinen Startwert 1.0 behält.</p>
+          <p><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> verschieben die Kamera in der XY-Ebene, die Pfeiltasten drehen die Szene. Gedrückthalten wiederholt den Schritt.</p>
+        </span>
+      </span>
+    </h2>
+
+    <div class="card">
+      <h4>Szene: Skulpturengarten</h4>
+      <p class="sub">Elf Grundkörper auf einer Bodenfläche, Zentralprojektion mit Öffnungswinkel 45°, Near <span class="js-near">3</span>, Far <span class="js-far">25</span>.</p>
+      <div class="viewport">
+        <canvas id="canvas" width="1200" height="750" tabindex="0" aria-label="Tiefenpuffer der Szene als Graustufenbild"></canvas>
+      </div>
+
+      <div class="legend" aria-label="Legende der Graustufen">
+        <div class="bar-label"><span>nah, dunkel</span><span>Tiefe d (Abstand entlang der Blickrichtung)</span><span>fern, hell</span></div>
+        <div class="bar linear" aria-hidden="true"></div>
+        <div class="ticks" id="ticksLinear" aria-hidden="true"></div>
+      </div>
+
+      <div class="statline" aria-label="Zustand von Kamera und Szene">
+        <span><b>Kamera:</b> x <span id="infoCamX">0.00</span>, y <span id="infoCamY">0.00</span></span>
+        <span><b>Drehung:</b> Y <span id="infoRotY">0°</span>, X <span id="infoRotX">0°</span></span>
+      </div>
+
+      <div class="pad">
+        <div class="pad-group" role="group" aria-label="Kamera bewegen">
+          <p class="pad-title">Kamera bewegen</p>
+          <button id="btnW" class="btn secondary up" type="button" disabled>Hoch<kbd>W</kbd></button>
+          <button id="btnA" class="btn secondary left" type="button" disabled>Links<kbd>A</kbd></button>
+          <button id="btnS" class="btn secondary down" type="button" disabled>Runter<kbd>S</kbd></button>
+          <button id="btnD" class="btn secondary right" type="button" disabled>Rechts<kbd>D</kbd></button>
+        </div>
+        <div class="pad-group" role="group" aria-label="Szene drehen">
+          <p class="pad-title">Szene drehen</p>
+          <button id="btnUp" class="btn secondary up" type="button" disabled aria-label="Szene nach oben drehen">▲<kbd>↑</kbd></button>
+          <button id="btnLeft" class="btn secondary left" type="button" disabled aria-label="Szene nach links drehen">◀<kbd>←</kbd></button>
+          <button id="btnDown" class="btn secondary down" type="button" disabled aria-label="Szene nach unten drehen">▼<kbd>↓</kbd></button>
+          <button id="btnRight" class="btn secondary right" type="button" disabled aria-label="Szene nach rechts drehen">▶<kbd>→</kbd></button>
+        </div>
+        <div class="pad-extra">
+          <button id="btnReset" class="btn" type="button" disabled>Zurücksetzen<kbd>R</kbd></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- A2 Bedienung -->
+  <section aria-labelledby="a2">
+    <h2 id="a2"><span class="num">A2</span>Bedienung
+      <span class="help">
+        <button type="button" class="help-btn" aria-label="Hilfe zu A2" aria-expanded="false">?</button>
+        <span class="help-popover" role="tooltip">
+          <h4>Tastatur oder Maus</h4>
+          <p>Jede Taste hat einen Button mit derselben Wirkung. Beim Tastendruck leuchtet der zugehörige Button kurz auf. Tastenkombinationen mit Strg, Cmd oder Alt bleiben dem Browser überlassen.</p>
+        </span>
+      </span>
+    </h2>
+    <table class="key-table">
+      <thead><tr><th>Taste</th><th>Wirkung</th></tr></thead>
+      <tbody>
+        <tr><td><kbd>W</kbd></td><td>Kamera in der XY-Ebene nach oben verschieben (+Y), die Szene wandert im Bild nach unten</td></tr>
+        <tr><td><kbd>S</kbd></td><td>Kamera in der XY-Ebene nach unten verschieben (-Y)</td></tr>
+        <tr><td><kbd>A</kbd></td><td>Kamera in der XY-Ebene nach links verschieben (-X)</td></tr>
+        <tr><td><kbd>D</kbd></td><td>Kamera in der XY-Ebene nach rechts verschieben (+X)</td></tr>
+        <tr><td><kbd>←</kbd></td><td>Szene um die Y-Achse nach links drehen (5° pro Schritt)</td></tr>
+        <tr><td><kbd>→</kbd></td><td>Szene um die Y-Achse nach rechts drehen</td></tr>
+        <tr><td><kbd>↑</kbd></td><td>Szene um die X-Achse nach oben drehen, die Vorderseite hebt sich</td></tr>
+        <tr><td><kbd>↓</kbd></td><td>Szene um die X-Achse nach unten drehen, die Vorderseite senkt sich</td></tr>
+        <tr><td><kbd>R</kbd></td><td>Kamera und Drehung auf die Startansicht zurücksetzen</td></tr>
+      </tbody>
+    </table>
+    <div class="prose">
+      <p>Ein Schritt verschiebt die Kamera um <span class="js-step">0.25</span> Einheiten. Blickpunkt und Kameraposition werden dabei gemeinsam verschoben, die Blickrichtung bleibt gleich. Gedrückthalten einer Taste wiederholt den Schritt. Gedreht wird die ganze Szene um ihren Mittelpunkt (0, 0, -4), nicht die Kamera.</p>
+    </div>
+  </section>
+
+  <!-- A3 Dokumentation -->
+  <section aria-labelledby="a3">
+    <h2 id="a3"><span class="num">A3</span>Dokumentation
+      <span class="help">
+        <button type="button" class="help-btn" aria-label="Hilfe zu A3" aria-expanded="false">?</button>
+        <span class="help-popover" role="tooltip">
+          <h4>Kurz gesagt</h4>
+          <p>Der Fragment-Shader liest den Tiefenwert aus <code>gl_FragCoord.z</code>, rechnet ihn in den tatsächlichen Abstand zur Kamera zurück und bildet diesen linear auf Schwarz bis Weiß ab.</p>
+        </span>
+      </span>
+    </h2>
+    <div class="prose">
+      <h3>Die Szene</h3>
+      <p>Die Körper stehen auf einer Bodenfläche und reichen in drei Staffeln von vorne bis weit nach hinten. Jede Gruppe enthält Durchdringungen, damit man die relative Lage am Graustufenverlauf ablesen kann:</p>
+      <ul>
+        <li><b>Vorne links:</b> ein aufrecht stehender Torus, der von einem senkrechten Zylinder durchstoßen wird und unten in den Boden einsinkt.</li>
+        <li><b>Mitte rechts:</b> eine Kugel, in die ein schräg gedrehter Würfel eindringt.</li>
+        <li><b>Mitte links:</b> ein Kegel, um den ein liegender Torus wie ein Ring gelegt ist und in die Mantelfläche schneidet.</li>
+        <li><b>Hinten:</b> eine große Kugel, die von einem schrägen Zylinder durchbohrt wird, dazu zwei Säulen und ein Quader in zunehmender Entfernung bis kurz vor die Far-Clipping-Plane.</li>
+      </ul>
+
+      <h3>Vom Z-Wert zur Graustufe</h3>
+      <p>Die Projektionsmatrix bildet den Abstand d eines Punktes entlang der Blickrichtung (d = -z im Kamera-Raum) auf die normierte Gerätekoordinate z<sub>ndc</sub> im Bereich -1 bis 1 ab. Nach der Viewport-Transformation liegt der Wert im Bereich 0 bis 1, wird im Tiefenpuffer gespeichert und steht im Fragment-Shader als <code>gl_FragCoord.z</code> zur Verfügung. Bei der Zentralprojektion ist dieser Zusammenhang nicht linear, sondern hyperbolisch (proportional zu 1/d):</p>
+      <div class="formula">
+        z<sub>ndc</sub> = (f + n) / (f - n) - 2fn / ((f - n) d)<br>
+        gl_FragCoord.z = (z<sub>ndc</sub> + 1) / 2
+      </div>
+      <p>Würde man <code>gl_FragCoord.z</code> direkt als Grauwert verwenden, fiele fast die ganze Szene in einen schmalen, sehr hellen Bereich (siehe Tabelle unten), weil die Werte sich nahe der Near-Clipping-Plane bündeln. Deshalb rechnet der Fragment-Shader den Tiefenwert in den linearen Abstand zurück und normiert ihn auf den Bereich zwischen Near und Far:</p>
+      <div class="formula">
+        z<sub>ndc</sub> = 2 gl_FragCoord.z - 1<br>
+        d = 2nf / (f + n - z<sub>ndc</sub> (f - n))<br>
+        Grauwert = (d - n) / (f - n)
+      </div>
+      <p>Ein Fragment an der Near-Clipping-Plane (d = n) wird damit schwarz, eines an der Far-Clipping-Plane (d = f) weiß. Dazwischen nimmt die Helligkeit gleichmäßig mit dem Abstand zu. Der Tiefenpuffer wird vor jedem Bild mit 1.0 gelöscht, der Hintergrund erscheint deshalb ebenfalls weiß.</p>
+
+      <h3>Gewählte Werte für Near und Far</h3>
+      <p>Near n = <span class="js-near">3</span> und Far f = <span class="js-far">25</span>. Die Kamera steht bei (0, 3.2, 9) und blickt auf (0, -0.2, -4). Der nächste sichtbare Punkt (untere Bildkante am Boden) liegt bei d = 6.6, die Vorderseite des Torus bei etwa d = 7, die hinterste Säule bei etwa d = 23. Damit nutzt die Szene fast den ganzen Grauwertbereich: vorne dunkelgrau (Grauwert 0.16), hinten fast weiß (0.92). Die Bodenfläche reicht über die Far-Clipping-Plane hinaus und läuft dort nahtlos in den weißen Hintergrund aus. Near liegt bewusst nicht dichter an der Kamera: Vor d = 6.6 gibt es nichts zu sehen, ein kleinerer Wert würde den dunklen Teil der Skala ungenutzt lassen und nach NVIDIA die Präzision des Tiefenpuffers verschlechtern. Ein deutlich größerer Far-Wert würde die Körper insgesamt in den dunklen Bereich schieben, ein kleinerer würde die hinteren Körper abschneiden.</p>
+      <div class="table-scroll">
+        <table class="key-table value-table" aria-label="Tiefenwerte und Graustufen bei verschiedenen Abständen">
+          <thead><tr><th class="num">Abstand d</th><th class="num">gl_FragCoord.z (Rohwert)</th><th class="num">Grauwert linear</th><th>Rohwert als Grau</th><th>linear als Grau</th></tr></thead>
+          <tbody id="valueTable"></tbody>
+        </table>
+      </div>
+      <p>Die Tabelle zeigt das Problem der Skalierung: Die Hälfte des Rohwertbereichs wird schon zwischen n = 3 und d = 5.4 verbraucht. Die sichtbare Szene von d = 6.6 bis 23 belegt im Rohwert nur den Bereich 0.62 bis 0.99, alles hinter d = 12 sogar nur 0.85 bis 0.99 und wäre damit kaum von Weiß zu unterscheiden. Die lineare Graustufe verteilt dieselbe Strecke gleichmäßig auf Schwarz bis Weiß.</p>
+
+      <h3>Was man sieht</h3>
+      <ul>
+        <li>Der Boden zeigt einen gleichmäßigen Verlauf von dunkel (vorne unten) nach hell (hinten oben). An ihm lässt sich die Tiefe jedes Körpers ablesen: wo ein Körper den Boden berührt, haben beide denselben Grauwert.</li>
+        <li>An Überschneidungen, etwa Zylinder und Torus vorne oder Würfel und Kugel, gehen die Grauwerte stetig ineinander über. Die Schnittlinie ist als Knick im Verlauf zu erkennen. An Silhouetten springt der Grauwert dagegen, weil dahinter ein weiter entferntes Fragment liegt.</li>
+        <li>Verdeckte Teile fehlen vollständig: Der Tiefentest (<code>gl.DEPTH_TEST</code> mit <code>gl.LEQUAL</code>) behält pro Pixel nur das Fragment mit dem kleinsten Tiefenwert, unabhängig von der Zeichenreihenfolge.</li>
+        <li>Rundungen erscheinen ohne Beleuchtung trotzdem plastisch, weil ihre Tiefe zum Rand hin zunimmt. Beim Drehen der Szene ändern sich die Grauwerte entsprechend. Körper, die dabei näher als n an die Kamera kommen, werden von der Near-Clipping-Plane abgeschnitten.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- A4 Material -->
+  <section aria-labelledby="a4">
+    <h2 id="a4"><span class="num">A4</span>Material &amp; Quellen</h2>
+    <div class="prose">
+      <ul>
+        <li><b>Skalierung der Tiefe:</b> Nathan Reed, <a href="https://developer.nvidia.com/blog/visualizing-depth-precision/" target="_blank" rel="noopener">Visualizing Depth Precision</a>, NVIDIA Technical Blog. Daraus stammen der hyperbolische Zusammenhang zwischen Tiefenwert und Abstand (proportional zu 1/d) und der Hinweis, dass die Wahl der Near-Clipping-Plane die Verteilung der Tiefenwerte stark beeinflusst.</li>
+        <li><b>Skript:</b> Kapitel KUF (Tiefentest und Z-Buffer), GRU (parametrische Form von Kugel, Torus, Zylinder und Kegel), KAP (lookAt, View-Frustum, Zentralprojektion mit Near und Far), TFM (Model-Matrix aus Translation, Rotation und Skalierung), SHA (Eingabe des Fragment-Shaders, <code>gl_FragCoord</code>) und SLP (GLSL).</li>
+        <li><b>Fremdmaterial:</b> keines. Es werden keine externen Bibliotheken, Schriften oder Bilder verwendet.</li>
+        <li><b>Technik:</b> WebGL 1 mit GLSL ES 1.00, ohne Framework. Die Matrizenfunktionen (perspective, lookAt, Rotationen, Translation, Skalierung, Multiplikation) sind selbst geschrieben und spaltenweise gespeichert wie in WebGL üblich. Die Geometrie wird beim Start aus den parametrischen Formen erzeugt und mit Index-Arrays (<code>drawElements</code>) gezeichnet.</li>
+        <li><b>Quelltext:</b> die für diese Aufgabe geschriebenen Stellen sind mit <code>// START EA7_ZBUFFER</code> und <code>// END EA7_ZBUFFER</code> markiert.</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    <p>Die Seite läuft vollständig im Browser. Es werden keine Daten an einen Server gesendet und nichts gespeichert.</p>
+  </footer>
+</main>
+
+<script id="vertexshader" type="x-shader/x-vertex">
+// START EA7_ZBUFFER
+attribute vec3 aPosition;
+
+uniform mat4 uPMatrix;
+uniform mat4 uMVMatrix;
+
+void main() {
+  gl_Position = uPMatrix * uMVMatrix * vec4(aPosition, 1.0);
+}
+// END EA7_ZBUFFER
+</script>
+
+<script id="fragmentshader" type="x-shader/x-fragment">
+// START EA7_ZBUFFER
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+
+uniform float uNear;
+uniform float uFar;
+
+void main() {
+  // Tiefenwert 0..1 aus dem Tiefenpuffer zurück nach NDC -1..1
+  float zNdc = 2.0 * gl_FragCoord.z - 1.0;
+  // Umkehrung der Perspektivprojektion: linearer Abstand d zur Kamera
+  float d = 2.0 * uNear * uFar / (uFar + uNear - zNdc * (uFar - uNear));
+  // Normierung auf Near..Far: nah = schwarz, fern = weiß
+  float gray = clamp((d - uNear) / (uFar - uNear), 0.0, 1.0);
+  gl_FragColor = vec4(vec3(gray), 1.0);
+}
+// END EA7_ZBUFFER
+</script>
+
+<script>
+// START EA7_ZBUFFER
+var app = (function () {
+  "use strict";
+
+  // Matrizen 4x4, spaltenweise gespeichert
+  var mat4 = {
+    create: function () {
+      var m = new Float32Array(16);
+      m[0] = m[5] = m[10] = m[15] = 1;
+      return m;
+    },
+    identity: function (out) {
+      out.fill(0);
+      out[0] = out[5] = out[10] = out[15] = 1;
+      return out;
+    },
+    // out = a * b
+    multiply: function (out, a, b) {
+      var r = new Float32Array(16);
+      for (var col = 0; col < 4; col++) {
+        for (var row = 0; row < 4; row++) {
+          var s = 0;
+          for (var k = 0; k < 4; k++) s += a[k * 4 + row] * b[col * 4 + k];
+          r[col * 4 + row] = s;
+        }
+      }
+      out.set(r);
+      return out;
+    },
+    translate: function (out, a, v) {
+      var t = mat4.create();
+      t[12] = v[0]; t[13] = v[1]; t[14] = v[2];
+      return mat4.multiply(out, a, t);
+    },
+    scale: function (out, a, v) {
+      var s = mat4.create();
+      s[0] = v[0]; s[5] = v[1]; s[10] = v[2];
+      return mat4.multiply(out, a, s);
+    },
+    rotateX: function (out, a, rad) {
+      var c = Math.cos(rad), s = Math.sin(rad), r = mat4.create();
+      r[5] = c; r[6] = s; r[9] = -s; r[10] = c;
+      return mat4.multiply(out, a, r);
+    },
+    rotateY: function (out, a, rad) {
+      var c = Math.cos(rad), s = Math.sin(rad), r = mat4.create();
+      r[0] = c; r[2] = -s; r[8] = s; r[10] = c;
+      return mat4.multiply(out, a, r);
+    },
+    rotateZ: function (out, a, rad) {
+      var c = Math.cos(rad), s = Math.sin(rad), r = mat4.create();
+      r[0] = c; r[1] = s; r[4] = -s; r[5] = c;
+      return mat4.multiply(out, a, r);
+    },
+    // Zentralprojektion, bildet [-near, -far] im Kamera-Raum auf NDC [-1, 1] ab
+    perspective: function (out, fovy, aspect, near, far) {
+      var f = 1 / Math.tan(fovy / 2), nf = 1 / (near - far);
+      out.fill(0);
+      out[0] = f / aspect;
+      out[5] = f;
+      out[10] = (far + near) * nf;
+      out[11] = -1;
+      out[14] = 2 * far * near * nf;
+      return out;
+    },
+    lookAt: function (out, eye, center, up) {
+      var z = normalize([eye[0] - center[0], eye[1] - center[1], eye[2] - center[2]]);
+      var x = normalize(cross(up, z));
+      var y = cross(z, x);
+      out[0] = x[0]; out[1] = y[0]; out[2] = z[0]; out[3] = 0;
+      out[4] = x[1]; out[5] = y[1]; out[6] = z[1]; out[7] = 0;
+      out[8] = x[2]; out[9] = y[2]; out[10] = z[2]; out[11] = 0;
+      out[12] = -dot(x, eye); out[13] = -dot(y, eye); out[14] = -dot(z, eye); out[15] = 1;
+      return out;
+    }
+  };
+  function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+  function cross(a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; }
+  function normalize(v) { var l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; }
+
+  var DEG = Math.PI / 180;
+  var MOVE_STEP = 0.25;
+  var ROTATE_STEP = 5 * DEG;
+
+  var gl, canvas, prog;
+  var models = [];
+
+  var camera = {
+    eye: [0, 3.2, 9],
+    center: [0, -0.2, -4],
+    up: [0, 1, 0],
+    fovy: 45 * DEG,
+    aspect: 16 / 10,
+    near: 3,
+    far: 25,
+    vMatrix: mat4.create(),
+    pMatrix: mat4.create()
+  };
+  var START_EYE = camera.eye.slice();
+  var START_CENTER = camera.center.slice();
+
+  // Drehung der gesamten Szene um ihren Mittelpunkt
+  var scene = {
+    pivot: [0, 0, -4],
+    angleX: 0,
+    angleY: 0,
+    mMatrix: mat4.create()
+  };
+
+  var statusEl = document.getElementById("globalStatus");
+  function setStatus(text, kind) {
+    statusEl.textContent = text;
+    statusEl.className = "global-status" + (kind ? " is-" + kind : "");
+  }
+
+  // ---------- Geometrie (Vertex- und Index-Arrays) ----------
+
+  // Kugel, parametrische Form wie im Skript (Y-Achse als Polachse)
+  function createSphere(r, n, m) {
+    var vertices = [], indices = [];
+    for (var i = 0; i <= n; i++) {
+      var u = i * 2 * Math.PI / n;
+      for (var j = 0; j <= m; j++) {
+        var v = j * Math.PI / m;
+        vertices.push(r * Math.sin(v) * Math.cos(u), r * Math.cos(v), r * Math.sin(v) * Math.sin(u));
+      }
+    }
+    gridIndices(indices, 0, n, m);
+    return { vertices: vertices, indices: indices };
+  }
+
+  // Torus in der XY-Ebene, Achse Z
+  function createTorus(R, r, n, m) {
+    var vertices = [], indices = [];
+    for (var i = 0; i <= n; i++) {
+      var v = i * 2 * Math.PI / n;
+      for (var j = 0; j <= m; j++) {
+        var u = j * 2 * Math.PI / m;
+        var p = R + r * Math.cos(u);
+        vertices.push(p * Math.cos(v), p * Math.sin(v), r * Math.sin(u));
+      }
+    }
+    gridIndices(indices, 0, n, m);
+    return { vertices: vertices, indices: indices };
+  }
+
+  // Zylinder (topRadius = r) oder Kegel (topRadius = 0), Grundfläche bei y = 0, Höhe h
+  function createCylinder(r, topRadius, h, n) {
+    var vertices = [], indices = [];
+    var rows = 8;
+    for (var i = 0; i <= n; i++) {
+      var u = i * 2 * Math.PI / n;
+      for (var j = 0; j <= rows; j++) {
+        var t = j / rows;
+        var rr = r + (topRadius - r) * t;
+        vertices.push(rr * Math.cos(u), h * t, rr * Math.sin(u));
+      }
+    }
+    gridIndices(indices, 0, n, rows);
+    addCap(vertices, indices, r, 0, n);
+    if (topRadius > 0) addCap(vertices, indices, topRadius, h, n);
+    return { vertices: vertices, indices: indices };
+  }
+
+  function addCap(vertices, indices, r, y, n) {
+    var center = vertices.length / 3;
+    vertices.push(0, y, 0);
+    for (var i = 0; i <= n; i++) {
+      var u = i * 2 * Math.PI / n;
+      vertices.push(r * Math.cos(u), y, r * Math.sin(u));
+    }
+    for (var k = 0; k < n; k++) indices.push(center, center + 1 + k, center + 2 + k);
+  }
+
+  // Quader mit Mittelpunkt im Ursprung
+  function createBox(sx, sy, sz) {
+    var x = sx / 2, y = sy / 2, z = sz / 2;
+    var faces = [
+      [[-x, -y, z], [x, -y, z], [x, y, z], [-x, y, z]],
+      [[x, -y, -z], [-x, -y, -z], [-x, y, -z], [x, y, -z]],
+      [[-x, -y, -z], [-x, -y, z], [-x, y, z], [-x, y, -z]],
+      [[x, -y, z], [x, -y, -z], [x, y, -z], [x, y, z]],
+      [[-x, y, z], [x, y, z], [x, y, -z], [-x, y, -z]],
+      [[-x, -y, -z], [x, -y, -z], [x, -y, z], [-x, -y, z]]
+    ];
+    var vertices = [], indices = [];
+    faces.forEach(function (f, k) {
+      f.forEach(function (p) { vertices.push(p[0], p[1], p[2]); });
+      indices.push(4 * k, 4 * k + 1, 4 * k + 2, 4 * k, 4 * k + 2, 4 * k + 3);
+    });
+    return { vertices: vertices, indices: indices };
+  }
+
+  // Bodenfläche in der XZ-Ebene als Gitter
+  function createPlane(w, d, n) {
+    var vertices = [], indices = [];
+    for (var i = 0; i <= n; i++) {
+      for (var j = 0; j <= n; j++) {
+        vertices.push(-w / 2 + w * i / n, 0, -d / 2 + d * j / n);
+      }
+    }
+    gridIndices(indices, 0, n, n);
+    return { vertices: vertices, indices: indices };
+  }
+
+  // Zwei Dreiecke pro Masche eines (n+1) x (m+1) Gitters
+  function gridIndices(indices, offset, n, m) {
+    for (var i = 0; i < n; i++) {
+      for (var j = 0; j < m; j++) {
+        var a = offset + i * (m + 1) + j;
+        var b = a + m + 1;
+        indices.push(a, b, a + 1, b, b + 1, a + 1);
+      }
+    }
+  }
+
+  var GEOMETRY = {
+    sphere: function () { return createSphere(1, 64, 32); },
+    torus: function () { return createTorus(1, 0.3, 72, 24); },
+    torusThin: function () { return createTorus(1, 0.24, 72, 24); },
+    cylinder: function () { return createCylinder(1, 1, 1, 48); },
+    cone: function () { return createCylinder(1, 0, 1, 48); },
+    box: function () { return createBox(1, 1, 1); },
+    plane: function () { return createPlane(1, 1, 20); }
+  };
+
+  // ---------- Initialisierung ----------
+
+  function start() {
+    try {
+      init();
+    } catch (err) {
+      console.error(err);
+      setStatus("Fehler: " + err.message, "error");
+      return;
+    }
+    initEventHandler();
+    setButtonsEnabled(true);
+    updateInfo();
+    requestRender();
+    setStatus("Bereit. Kamera mit W, A, S, D bewegen, Szene mit den Pfeiltasten drehen.", "ready");
+  }
+
+  function init() {
+    initWebGL();
+    initShaderProgram();
+    initUniforms();
+    initModels();
+    initPipeline();
+  }
+
+  function initWebGL() {
+    canvas = document.getElementById("canvas");
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(1200 * dpr);
+    canvas.height = Math.round(750 * dpr);
+    gl = canvas.getContext("webgl", { antialias: true });
+    if (!gl) throw new Error("WebGL wird von diesem Browser nicht unterstützt oder ist deaktiviert.");
+    gl.viewportWidth = canvas.width;
+    gl.viewportHeight = canvas.height;
+    canvas.addEventListener("webglcontextlost", function (evt) {
+      evt.preventDefault();
+      setButtonsEnabled(false);
+      setStatus("Fehler: Der WebGL-Kontext ging verloren. Bitte die Seite neu laden.", "error");
+    });
+  }
+
+  function initShader(type, id) {
+    var shader = gl.createShader(type);
+    gl.shaderSource(shader, document.getElementById(id).text);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      throw new Error("Shader " + id + " lässt sich nicht kompilieren:\n" + gl.getShaderInfoLog(shader));
+    }
+    return shader;
+  }
+
+  function initShaderProgram() {
+    var vs = initShader(gl.VERTEX_SHADER, "vertexshader");
+    var fs = initShader(gl.FRAGMENT_SHADER, "fragmentshader");
+    prog = gl.createProgram();
+    gl.attachShader(prog, vs);
+    gl.attachShader(prog, fs);
+    gl.bindAttribLocation(prog, 0, "aPosition");
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      throw new Error("Shader-Programm lässt sich nicht linken:\n" + gl.getProgramInfoLog(prog));
+    }
+    gl.useProgram(prog);
+  }
+
+  function initUniforms() {
+    prog.positionAttrib = gl.getAttribLocation(prog, "aPosition");
+    gl.enableVertexAttribArray(prog.positionAttrib);
+    prog.pMatrixUniform = gl.getUniformLocation(prog, "uPMatrix");
+    prog.mvMatrixUniform = gl.getUniformLocation(prog, "uMVMatrix");
+    prog.nearUniform = gl.getUniformLocation(prog, "uNear");
+    prog.farUniform = gl.getUniformLocation(prog, "uFar");
+  }
+
+  function initModels() {
+    // Boden y = -1, reicht über die Far-Clipping-Plane hinaus
+    createModel("plane", [0, -1, -12], [0, 0, 0], [40, 1, 40]);
+
+    // Vorne links: Torus, senkrecht von einem Zylinder durchstoßen
+    createModel("torus", [-2.2, -0.05, 2.2], [0, 40, 0], [0.8, 0.8, 0.8]);
+    createModel("cylinder", [-2.2, -1, 2.2], [0, 0, 0], [0.17, 3.0, 0.17]);
+
+    // Mitte rechts: Kugel mit eindringendem Würfel
+    createModel("sphere", [1.5, 0.1, -1.2], [0, 0, 0], [1.15, 1.15, 1.15]);
+    createModel("box", [2.45, -0.15, -0.35], [25, 35, 15], [1.4, 1.4, 1.4]);
+
+    // Mitte links: Kegel mit liegendem Ring
+    createModel("cone", [-1.6, -1, -5], [0, 0, 0], [1.2, 3.2, 1.2]);
+    createModel("torusThin", [-1.6, 0.0, -5], [90, 0, 0], [0.9, 0.9, 0.9]);
+
+    // Hinten: große Kugel, schräg durchbohrt
+    createModel("sphere", [3.0, 0.4, -9], [0, 0, 0], [1.6, 1.6, 1.6]);
+    createModel("cylinder", [1.6, -1, -9], [0, 0, -28], [0.42, 6.2, 0.42]);
+
+    // Säulen und Quader in zunehmender Entfernung
+    createModel("cylinder", [-4.6, -1, -10], [0, 0, 0], [0.4, 4.2, 0.4]);
+    createModel("box", [-2.2, 0.2, -13.5], [0, 30, 0], [2.4, 2.4, 1.0]);
+    createModel("cylinder", [4.8, -1, -14.5], [0, 0, 0], [0.45, 5.0, 0.45]);
+  }
+
+  var geometryCache = {};
+  function createModel(name, translate, rotateDeg, scale) {
+    var model = {};
+    model.geometry = geometryCache[name] || (geometryCache[name] = initDataAndBuffers(name));
+    model.translate = translate;
+    model.rotate = rotateDeg.map(function (a) { return a * DEG; });
+    model.scale = scale;
+    model.mMatrix = mat4.create();
+    model.mvMatrix = mat4.create();
+    models.push(model);
+  }
+
+  function initDataAndBuffers(name) {
+    var data = GEOMETRY[name]();
+    if (data.vertices.length / 3 > 65535) throw new Error("Zu viele Vertices für " + name);
+    var geo = {};
+    geo.vboPos = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, geo.vboPos);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data.vertices), gl.STATIC_DRAW);
+    geo.ibo = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, geo.ibo);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(data.indices), gl.STATIC_DRAW);
+    geo.ibo.numberOfElements = data.indices.length;
+    return geo;
+  }
+
+  function initPipeline() {
+    // Hintergrund weiß = Tiefe an der Far-Clipping-Plane
+    gl.clearColor(1, 1, 1, 1);
+    gl.clearDepth(1.0);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+    gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+    camera.aspect = gl.viewportWidth / gl.viewportHeight;
+    gl.uniform1f(prog.nearUniform, camera.near);
+    gl.uniform1f(prog.farUniform, camera.far);
+  }
+
+  // ---------- Rendern ----------
+
+  var renderPending = false;
+  function requestRender() {
+    if (renderPending) return;
+    renderPending = true;
+    requestAnimationFrame(function () { renderPending = false; render(); });
+  }
+
+  function render() {
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    mat4.perspective(camera.pMatrix, camera.fovy, camera.aspect, camera.near, camera.far);
+    gl.uniformMatrix4fv(prog.pMatrixUniform, false, camera.pMatrix);
+    mat4.lookAt(camera.vMatrix, camera.eye, camera.center, camera.up);
+
+    // Szene um den Mittelpunkt drehen: T(p) * Rx * Ry * T(-p)
+    var p = scene.pivot, s = scene.mMatrix;
+    mat4.identity(s);
+    mat4.translate(s, s, p);
+    mat4.rotateX(s, s, scene.angleX);
+    mat4.rotateY(s, s, scene.angleY);
+    mat4.translate(s, s, [-p[0], -p[1], -p[2]]);
+
+    for (var i = 0; i < models.length; i++) {
+      updateTransformations(models[i]);
+      gl.uniformMatrix4fv(prog.mvMatrixUniform, false, models[i].mvMatrix);
+      draw(models[i]);
+    }
+  }
+
+  function updateTransformations(model) {
+    var m = model.mMatrix;
+    mat4.identity(m);
+    mat4.translate(m, m, model.translate);
+    mat4.rotateX(m, m, model.rotate[0]);
+    mat4.rotateY(m, m, model.rotate[1]);
+    mat4.rotateZ(m, m, model.rotate[2]);
+    mat4.scale(m, m, model.scale);
+    // Model-View-Matrix = View * Szenendrehung * Model
+    mat4.multiply(model.mvMatrix, scene.mMatrix, m);
+    mat4.multiply(model.mvMatrix, camera.vMatrix, model.mvMatrix);
+  }
+
+  function draw(model) {
+    var geo = model.geometry;
+    gl.bindBuffer(gl.ARRAY_BUFFER, geo.vboPos);
+    gl.vertexAttribPointer(prog.positionAttrib, 3, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, geo.ibo);
+    gl.drawElements(gl.TRIANGLES, geo.ibo.numberOfElements, gl.UNSIGNED_SHORT, 0);
+  }
+
+  // ---------- Interaktion ----------
+
+  function moveCamera(dx, dy) {
+    camera.eye[0] += dx; camera.center[0] += dx;
+    camera.eye[1] += dy; camera.center[1] += dy;
+  }
+  function rotateScene(dx, dy) {
+    scene.angleX = wrapAngle(scene.angleX + dx);
+    scene.angleY = wrapAngle(scene.angleY + dy);
+  }
+  function wrapAngle(a) {
+    var full = 2 * Math.PI;
+    a = a % full;
+    if (a > Math.PI + 1e-9) a -= full;
+    if (a <= -Math.PI + 1e-9) a += full;
+    return a;
+  }
+  function resetView() {
+    camera.eye = START_EYE.slice();
+    camera.center = START_CENTER.slice();
+    scene.angleX = 0;
+    scene.angleY = 0;
+  }
+
+  var ACTIONS = {
+    w: { btn: "btnW", run: function () { moveCamera(0, MOVE_STEP); } },
+    s: { btn: "btnS", run: function () { moveCamera(0, -MOVE_STEP); } },
+    a: { btn: "btnA", run: function () { moveCamera(-MOVE_STEP, 0); } },
+    d: { btn: "btnD", run: function () { moveCamera(MOVE_STEP, 0); } },
+    ArrowLeft: { btn: "btnLeft", run: function () { rotateScene(0, -ROTATE_STEP); } },
+    ArrowRight: { btn: "btnRight", run: function () { rotateScene(0, ROTATE_STEP); } },
+    ArrowUp: { btn: "btnUp", run: function () { rotateScene(-ROTATE_STEP, 0); } },
+    ArrowDown: { btn: "btnDown", run: function () { rotateScene(ROTATE_STEP, 0); } },
+    r: { btn: "btnReset", noRepeat: true, run: resetView }
+  };
+
+  function perform(action) {
+    action.run();
+    updateInfo();
+    requestRender();
+  }
+
+  function flash(btn) {
+    btn.classList.add("is-pressed");
+    clearTimeout(btn.flashTimer);
+    btn.flashTimer = setTimeout(function () { btn.classList.remove("is-pressed"); }, 120);
+  }
+
+  function initEventHandler() {
+    Object.keys(ACTIONS).forEach(function (key) {
+      var action = ACTIONS[key];
+      document.getElementById(action.btn).addEventListener("click", function () { perform(action); });
+    });
+    window.addEventListener("keydown", function (evt) {
+      if (evt.ctrlKey || evt.metaKey || evt.altKey) return;
+      var key = evt.key || "";
+      var action = ACTIONS[key.length === 1 ? key.toLowerCase() : key];
+      if (!action) return;
+      evt.preventDefault();
+      if (action.noRepeat && evt.repeat) return;
+      flash(document.getElementById(action.btn));
+      perform(action);
+    });
+  }
+
+  function setButtonsEnabled(on) {
+    Object.keys(ACTIONS).forEach(function (key) {
+      document.getElementById(ACTIONS[key].btn).disabled = !on;
+    });
+  }
+
+  function updateInfo() {
+    document.getElementById("infoCamX").textContent = camera.eye[0].toFixed(2);
+    document.getElementById("infoCamY").textContent = camera.eye[1].toFixed(2);
+    document.getElementById("infoRotY").textContent = Math.round(scene.angleY / DEG) + "°";
+    document.getElementById("infoRotX").textContent = Math.round(scene.angleX / DEG) + "°";
+  }
+
+  // ---------- Legende und Wertetabelle ----------
+
+  function rawDepth(d) {
+    var n = camera.near, f = camera.far;
+    var zNdc = (f + n) / (f - n) - 2 * f * n / ((f - n) * d);
+    return Math.max(0, (zNdc + 1) / 2);
+  }
+  function linearGray(d) {
+    return (d - camera.near) / (camera.far - camera.near);
+  }
+  function grayCss(g) {
+    var v = Math.round(Math.max(0, Math.min(1, g)) * 255);
+    return "rgb(" + v + "," + v + "," + v + ")";
+  }
+
+  function initDocumentation() {
+    var n = camera.near, f = camera.far;
+    document.querySelectorAll(".js-near").forEach(function (el) { el.textContent = n; });
+    document.querySelectorAll(".js-far").forEach(function (el) { el.textContent = f; });
+    document.querySelectorAll(".js-step").forEach(function (el) { el.textContent = MOVE_STEP; });
+
+    var ticks = document.getElementById("ticksLinear");
+    [n, 10, 15, 20, f].forEach(function (d) {
+      var span = document.createElement("span");
+      span.style.left = (linearGray(d) * 100) + "%";
+      span.textContent = (d === n ? "n = " : d === f ? "f = " : "") + d;
+      ticks.appendChild(span);
+    });
+
+    var body = document.getElementById("valueTable");
+    [n, 4, 5, 6.6, 8, 10, 12, 15, 20, 23, f].forEach(function (d) {
+      var raw = rawDepth(d), lin = linearGray(d);
+      var tr = document.createElement("tr");
+      tr.innerHTML = "<td class=\"num\">" + d + (d === n ? " (Near)" : d === f ? " (Far)" : "") + "</td>" +
+        "<td class=\"num\">" + raw.toFixed(3) + "</td>" +
+        "<td class=\"num\">" + lin.toFixed(3) + "</td>" +
+        "<td><span class=\"swatch\" style=\"background:" + grayCss(raw) + "\"></span></td>" +
+        "<td><span class=\"swatch\" style=\"background:" + grayCss(lin) + "\"></span></td>";
+      body.appendChild(tr);
+    });
+  }
+
+  initDocumentation();
+
+  return { start: start };
+}());
+// END EA7_ZBUFFER
+
+app.start();
+
+// Hilfe-Popover
+document.querySelectorAll(".help").forEach(help => {
+  const btn = help.querySelector(".help-btn");
+  btn.addEventListener("click", e => {
+    e.stopPropagation();
+    document.querySelectorAll(".help.is-open").forEach(h => { if (h !== help) { h.classList.remove("is-open"); h.querySelector(".help-btn").setAttribute("aria-expanded", "false"); } });
+    const open = help.classList.toggle("is-open");
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+});
+document.addEventListener("click", e => { if (!e.target.closest(".help")) document.querySelectorAll(".help.is-open").forEach(h => { h.classList.remove("is-open"); h.querySelector(".help-btn").setAttribute("aria-expanded", "false"); }); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") document.querySelectorAll(".help.is-open").forEach(h => { h.classList.remove("is-open"); h.querySelector(".help-btn").setAttribute("aria-expanded", "false"); }); });
+</script>
+</body>
+</html>
